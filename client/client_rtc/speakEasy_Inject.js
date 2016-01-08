@@ -40,10 +40,8 @@
     signalerSetup(this, socketEndPoint || '/');
   };
   /* 
-   * Configurable Storage entry data
+   * Fires on opening of webrtc channel. If is player, initiates with initial portion of handshake to trigger disconnect from server.
    * 
-   * @param {object} socket - The Socket of the admin
-   * @return {object} object - The storage entry containing the socket and a collection of players (Unique user ids)
    */
   SpeakEasyBuild.prototype.onOpenInject = function () {
     if (this.PlayerInfo) {
@@ -54,10 +52,10 @@
       })
     }
     /* 
-     * Configurable Storage entry data
+     * Fires on message
      * 
-     * @param {object} socket - The Socket of the admin
-     * @return {object} object - The storage entry containing the socket and a collection of players (Unique user ids)
+     * @param {object} Data - Object containing message 
+     * @param {number} rtcId - Player's rtcId local to the current user. 
      */
   };
   SpeakEasyBuild.prototype.onMessageInject = function (data, rtcId) {
@@ -72,20 +70,18 @@
     console.error("Somehow user recieved message without having established a role.");
   };
   /* 
-   * Configurable Storage entry data
+   * Used by admin player to eject a given player, fires onClose event
    * 
-   * @param {object} socket - The Socket of the admin
-   * @return {object} object - The storage entry containing the socket and a collection of players (Unique user ids)
+   * @param {object} data - The players rtcId.  Used to identify the localDataChannel to close
    */
   SpeakEasyBuild.prototype.ejectPlayer = function (data) {
     console.log("Player Eject called for:", data)
     this.LocalDataChannel.channels[data].channel.peer.close()
   };
   /* 
-   * Configurable Storage entry data
+   * On close event.  Used to determine/confirm if a player is ejected.  Also triggers player to re-init socket connection if an admin player loses connection.
    * 
-   * @param {object} socket - The Socket of the admin
-   * @return {object} object - The storage entry containing the socket and a collection of players (Unique user ids)
+   * @param {object} event - Event object containing related metadata.  Contains PeerConnection objects related to the event and player rtcIds.
    */
   SpeakEasyBuild.prototype.onclose = function (event) {
     var playerRtcId = event.target.SpkEzId;
@@ -116,10 +112,10 @@
     }
   };
   /* 
-   * Configurable Storage entry data
+   * Tells the signaling server that a player was recieved. If server 'oks' connection, player's socket will disconnect
    * 
-   * @param {object} socket - The Socket of the admin
-   * @return {object} object - The storage entry containing the socket and a collection of players (Unique user ids)
+   * @param {object} data - Object containing player's socketId to relay to signalling server
+   * @param {object} rtcId - Player's rtcId local to the current user.
    */
   SpeakEasyBuild.prototype.initiatePlayer = function (data, rtcId) {
     console.log("Player " + rtcId + " initialized...")
@@ -129,20 +125,18 @@
     });
   };
   /* 
-   * Configurable Storage entry data
+   * Fired on affirmative response from server.  Otherwise player is 'rejected'.
    * 
-   * @param {object} socket - The Socket of the admin
-   * @return {object} object - The storage entry containing the socket and a collection of players (Unique user ids)
+   * @param {object} data - Contains user socketId and rtcId
    */
   SpeakEasyBuild.prototype.confirmPlayer = function (data) {
     console.log("Player confirmed", data);
     this.AdminInfo.players[data.playerRtc] = new PlayerInfo(data);
   };
   /* 
-   * Configurable Storage entry data
+   * Configures user's local adminInfo object, used to determin player's status as Admin/Player
    * 
-   * @param {object} socket - The Socket of the admin
-   * @return {object} object - The storage entry containing the socket and a collection of players (Unique user ids)
+   * @param {object} data - Contain's player's socket id.
    */
   SpeakEasyBuild.prototype.adminSetup = function (data) {
     console.log("Role established: Admin", data);
@@ -152,10 +146,11 @@
     this.LocalDataChannel.open(this.AdminInfo.adminId);
   };
   /* 
-   * Configurable Storage entry data
+   * Configures user's local playerInfo object, used to determin player's status as Admin/Player
    * 
-   * @param {object} socket - The Socket of the admin
-   * @return {object} object - The storage entry containing the socket and a collection of players (Unique user ids)
+   * 
+   * @param {object} data - Contain's player's socket id.
+   * 
    */
   SpeakEasyBuild.prototype.playerSetup = function (data) {
     console.log("Role established: Player", data);
@@ -167,16 +162,26 @@
     });
   };
   /* 
-   * Configurable Storage entry data
+   * Classically instantiated AdminInfo object
    * 
-   * @param {object} socket - The Socket of the admin
-   * @return {object} object - The storage entry containing the socket and a collection of players (Unique user ids)
+   * @param {object} data - Object containing player's socketId
+   * @param {object} parent - SpeakEasy object, used to handle signalling between players.
+   * 
    */
   function AdminInfo(data, parent) {
     this.parent = parent;
     this.adminId = data.adminId;
     this.players = {};
   }
+
+
+  /* 
+   * Classically instantiated PlayerInfo object. Used for both admins/players.  When player connects to admin, is instantiated and added to AdminInfo's players collection. If role is established as player, used to contain SpeakEasy object and communicate via DataChannel.
+   * 
+   * @param {object} data - Object containing player's socketId
+   * @param {object} parent - SpeakEasy object, used to handle signalling between players.
+   *
+   */
 
   function PlayerInfo(data, parent) {
     this.PlayerSocketId = data.PlayerSocketId;
@@ -188,19 +193,18 @@
     }
   }
   /* 
-   * Configurable Storage entry data
+   * Broadcasts message to all players belonging to admin.
    * 
-   * @param {object} socket - The Socket of the admin
-   * @return {object} object - The storage entry containing the socket and a collection of players (Unique user ids)
+   * @param {string} msg - Message to be broadcasted to all players.
    */
   AdminInfo.prototype.broadcast = function (msg) {
     this.parent.LocalDataChannel.send(msg);
   };
   /* 
-   * Configurable Storage entry data
+   * Messages specific player using player's rtcId.
    * 
-   * @param {object} socket - The Socket of the admin
-   * @return {object} object - The storage entry containing the socket and a collection of players (Unique user ids)
+   * @param {string} msg - Message to be sent to player
+   * @param {number} playerId - Player's unique rtcId.
    */
   AdminInfo.prototype.message = function (msg, playerId, toLevelId) {
     if (!toLevelId) {
@@ -214,10 +218,9 @@
     }
   };
   /* 
-   * Configurable Storage entry data
+   * Used to send data to player's respective admin
    * 
-   * @param {object} socket - The Socket of the admin
-   * @return {object} object - The storage entry containing the socket and a collection of players (Unique user ids)
+   * @param {string} msg - Message to be sent to admin.
    */
   PlayerInfo.prototype.respond = function (msg) {
     this.parent.LocalDataChannel.send(msg);
